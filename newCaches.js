@@ -61,6 +61,11 @@ let map = null;
 
 /* USEFUL FUNCTIONS */
 
+function addTemporaryCache(lat, lng) {
+	console.log("ola");
+	//this.tempCaches.push(new Temporary)
+}
+
 // Capitalize the first letter of a string.
 function capitalize(str)
 {
@@ -149,7 +154,7 @@ class Cache extends POI {
 		this.installMarker();
 		map.add(this.marker);
 		if(kindIsPhysical(this.kind)){
-			this.installCircle(CACHE_RADIUS, 'red', 'Physical Cache');
+			this.installCircle(CACHE_RADIUS, 'red', "");
 			map.add(this.circle);
 		}
 	}
@@ -191,6 +196,46 @@ class Cache extends POI {
 	}
 }
 
+class Temporary extends Cache{
+	constructor(lat, lng) {
+		super(null);
+		map.remove(this.marker);
+		this.installCircle(CACHE_RADIUS, 'green', 'Temporary Traditional Cache');
+			map.add(this.circle);
+	}
+
+	decodeXML(xml) {
+		let txt =
+		 `<cache>
+		 <code>UNKNOWN</code>
+		 <name>UNKNOWN</name>
+		 <owner>UNKNOWN</owner>
+		 <latitude>${this.latitude}</latitude>
+		 <longitude>${this.longitude}</longitude>
+		 <altitude>-32768</altitude>
+		 <kind>Traditional</kind>
+		 <size>UNKNOWN</size>
+		 <difficulty>1</difficulty>
+		 <terrain>1</terrain>
+		 <favorites>0</favorites>
+		 <founds>0</founds>
+		 <not_founds>0</not_founds>
+		 <state>UNKNOWN</state>
+		 <county>UNKNOWN</county>
+		 <publish>2000/01/01</publish>
+		 <status>E</status>
+		 <last_log>2000/01/01</last_log>
+		 </cache>`;
+		xml = txt2xml(txt);
+		//super(xml);
+	}
+
+ 	txt2xml(txt) {
+		let parser = new DOMParser();
+		return parser.parseFromString(txt,"text/xml");
+	}
+}
+
 class Place extends POI {
 	constructor(name, pos) {
 		super(null);
@@ -210,13 +255,36 @@ class Map {
 		this.addBaseLayers(MAP_LAYERS);
 		this.icons = this.loadIcons(RESOURCES_DIR);
 		this.caches = [];
+		this.tempCaches = [];
 		this.addClickHandler(e =>
 			L.popup()
-			.setLatLng(e.latlng)
-			.setContent("You clicked the map at " + e.latlng.toString()
-			+ `<button onclick="getSite('B2', '${e.latlng.lat},${e.latlng.lng}')" id="B3" >Maps</button>`)
-		);
+			.setLatLng(e.latlng)	
+			.setContent("You clicked the map at " + e.latlng.toString() + '<br>'
+			+ `<button onclick="getSite('B2', '${e.latlng.lat},${e.latlng.lng}')" id="B2_map" >Maps</button>`
+			+ this.disableCacheCreation(`${e.latlng.lat}`, `${e.latlng.lng}`)));
 		
+	}
+
+	disableCacheCreation(lat, lng){
+		let found = false;
+		for(let i = 0; i < this.caches.length; i++){
+			//console.log(haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000);
+			let haversineMeters = haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000;
+			if(haversineMeters < 400 && !this.invadesAnyCacheRadious(lat, lng))
+				found = true;
+		}
+		if(found)
+			return `<button onclick="addTemporaryCache('${lat}','${lng}')" id="createCache" >Create Cache</button>`;
+		else
+			return `<button disabled>Create Cache</button>`;
+	}
+
+	invadesAnyCacheRadious(lat, lng){
+		for(let i = 0; i < this.caches.length; i++){
+			if(haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000 < CACHE_RADIUS)
+				return true;
+		}
+		return false;
 	}
 
 	populate() {
