@@ -133,6 +133,7 @@ class POI {
 }
 
 function getSite(id, argument) {
+	console.log(argument);
 	let url;
 	switch(id){
 		case "B1": url = "https://www.geocaching.com/geocache/" + argument; break;
@@ -182,8 +183,8 @@ class Cache extends POI {
 		marker
 			.bindPopup('<b>'+ this.kind + '</b>' + ' Cache' + '<br>'
 			+ `<button onclick="getSite('B1', '${this.code})')" id="B1" >Geocache</button>`
-			+ `<button onclick="getSite('B2', '${pos[0]}'+ ',' + '${pos[1]}')" id="B2" >Google Maps</button>`
-			+ `<button disabled onclick="getSite('B3', 'null')" id="B3" >Change Coordinates</button>`
+			+ `<button onclick="getSite('B2', '${pos[0]}'+ ',' + '${pos[1]}')" id="B2" >Maps</button>`
+			+ `<button disabled onclick="getSite('B3', 'null')" id="B3" >Alter Coords</button>`
 			+ `<button disabled onclick="getSite('B4', 'null')" id="B4" set="disabled">Delete</button>`)
 				.bindTooltip(this.name);
 		this.marker = marker;
@@ -212,8 +213,10 @@ class Map {
 		this.addClickHandler(e =>
 			L.popup()
 			.setLatLng(e.latlng)
-			.setContent("You clicked the map at " + e.latlng.toString())
+			.setContent("You clicked the map at " + e.latlng.toString()
+			+ `<button onclick="getSite('B2', '${e.latlng.lat},${e.latlng.lng}')" id="B3" >Maps</button>`)
 		);
+		
 	}
 
 	populate() {
