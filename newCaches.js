@@ -61,10 +61,10 @@ let map = null;
 
 /* USEFUL FUNCTIONS */
 
-function addTemporaryCache(lat, lng) {
+/*function addTemporaryCache(lat, lng) {
 	console.log("ola");
 	//this.tempCaches.push(new Temporary)
-}
+}*/
 
 // Capitalize the first letter of a string.
 function capitalize(str)
@@ -85,6 +85,21 @@ function haversine(lat1, lon1, lat2, lon2)
     return 6372.8 * 2.0 * Math.asin (Math.sqrt(a));
 }
 
+function disableCacheAlteration(cache){
+	let deletable;
+	let movable;
+	if(cache.isMovable())
+		movable = `<button onclick="getSite('B3', 'null')" id="B3" >Alter Coords</button>`
+	else
+		movable = `<button disabled onclick="getSite('B3', 'null')" id="B3" >Alter Coords</button>`
+
+	if(cache.isDeletable())
+		deletable = `<button onclick="map.removeCache(${cache.latitude}, ${cache.longitude})" id="But4" set="disabled">Delete</button>`;
+	else
+		deletable = `<button disabled id="B4" set="disabled">Delete</button>`;
+		return movable + deletable;
+}
+
 function loadXMLDoc(filename)
 {
 	let xhttp = new XMLHttpRequest();
@@ -97,6 +112,11 @@ function loadXMLDoc(filename)
 			+ "Therefore, no POIs will be visible.\n");
 	}
 	return xhttp.responseXML;	
+}
+
+function txt2xml(txt) {
+	let parser = new DOMParser();
+	return parser.parseFromString(txt,"text/xml");
 }
 
 function getAllValuesByTagName(xml, name)  {
@@ -135,6 +155,8 @@ class POI {
 			circle.bindPopup(popup);
 		this.circle = circle;
 	}
+
+	circleToGr
 }
 
 function getSite(id, argument) {
@@ -157,6 +179,14 @@ class Cache extends POI {
 			this.installCircle(CACHE_RADIUS, 'red', "");
 			map.add(this.circle);
 		}
+	}
+
+	isDeletable(){
+		return false;
+	}
+
+	isMovable(){
+		return (this.kind == "Mystery" || this.kind == "Multi");
 	}
 
 	decodeXML(xml) {
@@ -188,51 +218,25 @@ class Cache extends POI {
 		marker
 			.bindPopup('<b>'+ this.kind + '</b>' + ' Cache' + '<br>'
 			+ `<button onclick="getSite('B1', '${this.code})')" id="B1" >Geocache</button>`
-			+ `<button onclick="getSite('B2', '${pos[0]}'+ ',' + '${pos[1]}')" id="B2" >Maps</button>`
-			+ `<button disabled onclick="getSite('B3', 'null')" id="B3" >Alter Coords</button>`
-			+ `<button disabled onclick="getSite('B4', 'null')" id="B4" set="disabled">Delete</button>`)
+			+ `<button onclick="getSite('B2', '${pos[0]}'+ ',' + '${pos[1]}')" id="B2" >Maps</button>` + disableCacheAlteration(this))
 				.bindTooltip(this.name);
 		this.marker = marker;
 	}
 }
 
 class Temporary extends Cache{
-	constructor(lat, lng) {
-		super(null);
-		map.remove(this.marker);
-		this.installCircle(CACHE_RADIUS, 'green', 'Temporary Traditional Cache');
-			map.add(this.circle);
+	constructor(xml) {
+		super(xml);
+		this.circle.setStyle({color: 'lime', fillColor: 'lime'});
+		map.add(this.circle);
 	}
 
-	decodeXML(xml) {
-		let txt =
-		 `<cache>
-		 <code>UNKNOWN</code>
-		 <name>UNKNOWN</name>
-		 <owner>UNKNOWN</owner>
-		 <latitude>${this.latitude}</latitude>
-		 <longitude>${this.longitude}</longitude>
-		 <altitude>-32768</altitude>
-		 <kind>Traditional</kind>
-		 <size>UNKNOWN</size>
-		 <difficulty>1</difficulty>
-		 <terrain>1</terrain>
-		 <favorites>0</favorites>
-		 <founds>0</founds>
-		 <not_founds>0</not_founds>
-		 <state>UNKNOWN</state>
-		 <county>UNKNOWN</county>
-		 <publish>2000/01/01</publish>
-		 <status>E</status>
-		 <last_log>2000/01/01</last_log>
-		 </cache>`;
-		xml = txt2xml(txt);
-		//super(xml);
+	isDeletable(){
+		return true;
 	}
 
- 	txt2xml(txt) {
-		let parser = new DOMParser();
-		return parser.parseFromString(txt,"text/xml");
+	isMovable(){
+		return true;
 	}
 }
 
@@ -265,16 +269,41 @@ class Map {
 		
 	}
 
+	createCache(lat, lng){
+		let txt =
+		 `<cache>
+		 <code>UNKNOWN</code>
+		 <name>UNKNOWN</name>
+		 <owner>UNKNOWN</owner>
+		 <latitude>${lat}</latitude>
+		 <longitude>${lng}</longitude>
+		 <altitude>-32768</altitude>
+		 <kind>Traditional</kind>
+		 <size>UNKNOWN</size>
+		 <difficulty>1</difficulty>
+		 <terrain>1</terrain>
+		 <favorites>0</favorites>
+		 <founds>0</founds>
+		 <not_founds>0</not_founds>
+		 <state>UNKNOWN</state>
+		 <county>UNKNOWN</county>
+		 <publish>2000/01/01</publish>
+		 <status>E</status>
+		 <last_log>2000/01/01</last_log>
+		 </cache>`;
+		let xml = txt2xml(txt);
+		this.tempCaches.push(new Temporary(xml));
+	}
+
 	disableCacheCreation(lat, lng){
 		let found = false;
 		for(let i = 0; i < this.caches.length; i++){
-			//console.log(haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000);
 			let haversineMeters = haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000;
 			if(haversineMeters < 400 && !this.invadesAnyCacheRadious(lat, lng))
 				found = true;
 		}
 		if(found)
-			return `<button onclick="addTemporaryCache('${lat}','${lng}')" id="createCache" >Create Cache</button>`;
+			return `<button onclick="map.createCache('${lat}','${lng}')" id="createCache" >Create Cache</button>`;
 		else
 			return `<button disabled>Create Cache</button>`;
 	}
@@ -284,7 +313,25 @@ class Map {
 			if(haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000 < CACHE_RADIUS)
 				return true;
 		}
+		for(let i = 0; i < this.tempCaches.length; i++){
+			if(haversine(this.tempCaches[i].latitude, this.tempCaches[i].longitude, lat, lng)*1000 < CACHE_RADIUS)
+				return true;
+		}
 		return false;
+	}
+
+	removeCache(lat, lng){
+		for(let i = 0; i < this.tempCaches.length; i++){
+			let tmp = this.tempCaches[i];
+			if(this.tempCaches[i].latitude == lat && this.tempCaches[i].longitude == lng){
+				//this.tempCaches[i].removeMarker();
+				this.remove(this.tempCaches[i].circle);
+				this.remove(this.tempCaches[i].marker);
+				this.tempCaches.splice(i, 1);
+				return;
+			}
+		}
+		alert("INTERNAL ERROR");
 	}
 
 	populate() {
