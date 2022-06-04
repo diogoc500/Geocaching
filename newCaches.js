@@ -48,7 +48,7 @@ const CACHE_KINDS = ["CITO", "Earthcache", "Event",
 const CACHE_RADIUS =
 	161;  // meters
 const MAX_CREATION_RADIOUS =
-	400;
+	400;  //meters
 const CACHES_FILE_NAME =
 	"caches.xml";
 const STATUS_ENABLED =
@@ -61,8 +61,9 @@ const USER_CIRCLE_COLOR=
 	"lime";
 const AUTO_CIRCLE_COLOR=
 	"blue";
+const NO_POPUP = "";
 const LAT = 0;
-const LGN = 1;
+const LNG = 1;
 
 /* GLOBAL VARIABLES */
 
@@ -109,7 +110,7 @@ function initOffs2layers(){
 //deg in degrees
 function getNewCoords(pivotCache, offNum){
     let off = offs[offNum]
-    return [parseFloat(pivotCache.latitude) + off[LAT], parseFloat(pivotCache.longitude) + off[LGN]];
+    return [parseFloat(pivotCache.latitude) + off[LAT], parseFloat(pivotCache.longitude) + off[LNG]];
 }
 
 async function placeNew(howMany){
@@ -121,9 +122,9 @@ async function placeNew(howMany){
         if(pivotCache.kind === 'Traditional'){
             for(let offNum = 0; offNum<18; offNum++){
                 let newC = getNewCoords(pivotCache, offNum);
-                if(!map.invadesAnyCacheRadious(newC[LAT], newC[LGN])){
+                if(!map.invadesAnyCacheRadious(newC[LAT], newC[LNG])){
                     await new Promise(r => setTimeout(r, 1));
-                    map.createCache(newC[LAT], newC[LGN], AUTO_CIRCLE_COLOR);
+                    map.createCache(newC[LAT], newC[LNG], AUTO_CIRCLE_COLOR);
                     howManyPlaced++;
                     howMany--;
                 }
@@ -157,14 +158,14 @@ function disableCacheAlteration(cache){
 	let deletable;
 	let movable;
 	if(cache.isMovable())
-		movable = `<button onclick="getSite('B3', 'null')" id="B3" >Alter Coords</button>`
+		movable = `<button onclick="map.alterCoordinates(${cache.latitude}, ${cache.longitude})" >Alter Coords</button>`;
 	else
-		movable = `<button disabled onclick="getSite('B3', 'null')" id="B3" >Alter Coords</button>`
+		movable = `<button disabled>Alter Coords</button>`;
 
 	if(cache.isDeletable())
-		deletable = `<button onclick="map.removeCache(${cache.latitude}, ${cache.longitude})" id="But4" set="disabled">Delete</button>`;
+		deletable = `<button onclick="map.removeCache(${cache.latitude}, ${cache.longitude})" >Delete</button>`;
 	else
-		deletable = `<button disabled id="B4" set="disabled">Delete</button>`;
+		deletable = `<button disabled set="disabled">Delete</button>`;
 		return movable + deletable;
 }
 
@@ -247,6 +248,8 @@ class Cache extends POI {
 			this.installCircle(CACHE_RADIUS, TRAD_CIRCLE_COLOR, "");
 			map.add(this.circle);
 		}
+		this.color = TRAD_CIRCLE_COLOR;
+		this.dragMark = null;
 	}
 
 	isDeletable(){
@@ -290,13 +293,43 @@ class Cache extends POI {
 			.openPopup().bindTooltip(this.name);
 		this.marker = marker;
 	}
+
+	dragableMarker(){
+		let pos = [this.latitude, this.longitude];
+		let marker = L.marker(pos, {icon: map.getIcon(this.kind), draggable: true, autoPan: true});
+		this.dragMark = marker
+		map.remove(this.marker);
+		map.add(this.dragMark);
+	}
+
+	restoreOldMarker(){
+		map.remove(this.dragMark);
+		map.add(this.marker);
+		if(kindIsPhysical(this.kind))
+			map.add(this.circle);
+	}
+
+	changeCachePos(){
+		this.latitude = this.dragMark.getLatLng().lat;
+		this.longitude = this.dragMark.getLatLng().lng;
+		map.remove(this.dragMark);
+		this.installMarker();
+		map.add(this.marker);
+		if(kindIsPhysical(this.kind)){
+			this.installCircle(CACHE_RADIUS, this.color, NO_POPUP);
+			map.add(this.circle);
+		}
+	}
 }
+
+/* TEMPORARY CLASS */
 
 class Temporary extends Cache{
 	constructor(xml, color) {
 		super(xml);
 		this.circle.setStyle({color: color, fillColor: color});
 		map.add(this.circle);
+		this.color = color;
 	}
 
 	isDeletable(){
@@ -335,7 +368,6 @@ class Map {
 			.setContent("You clicked the map at " + e.latlng.toString() + '<br>'
 			+ `<button onclick="getSite('B2', '${e.latlng.lat},${e.latlng.lng}')" id="B2_map" >Maps</button>`
 			+ this.disableCacheCreation(`${e.latlng.lat}`, `${e.latlng.lng}`)));
-		
 	}
 
 	createCache(lat, lng, color){
@@ -366,16 +398,19 @@ class Map {
 	}
 
 	disableCacheCreation(lat, lng){
-		let found = false;
-		for(let i = 0; i < this.caches.length; i++){
-			let haversineMeters = haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000;
-			if(haversineMeters < MAX_CREATION_RADIOUS && !this.invadesAnyCacheRadious(lat, lng))
-				found = true;
-		}
-		if(found)
+		if(this.hasEnoughRadious(lat, lng) && !this.invadesAnyCacheRadious(lat, lng))
 			return `<button onclick="map.createCache('${lat}','${lng}', '${USER_CIRCLE_COLOR}')" id="createCache" >Create Cache</button>`;
 		else
 			return `<button disabled>Create Cache</button>`;
+	}
+
+	hasEnoughRadious(lat, lng){
+		for(let i = 0; i < this.caches.length; i++){
+			let haversineMeters = haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000;
+			if(haversineMeters <= MAX_CREATION_RADIOUS)
+				return true;
+		}
+		return false;
 	}
 
 	invadesAnyCacheRadious(lat, lng){
@@ -390,17 +425,61 @@ class Map {
 		return false;
 	}
 
-	removeCache(lat, lng){
+	findCache(lat, lng){
+		for(let i = 0; i < this.caches.length; i++){
+			if(this.caches[i].latitude == lat && this.caches[i].longitude == lng)
+				return this.caches[i];
+		}
+		return map.findTempCaches(lat, lng)[0];
+	}
+
+	findTempCaches(lat, lng){
+		let arr = [];
 		for(let i = 0; i < this.tempCaches.length; i++){
-			let tmp = this.tempCaches[i];
 			if(this.tempCaches[i].latitude == lat && this.tempCaches[i].longitude == lng){
-				this.remove(this.tempCaches[i].circle);
-				this.remove(this.tempCaches[i].marker);
-				this.tempCaches.splice(i, 1);
-				return;
+				arr[0] = this.tempCaches[i];
+				arr[1] = i;
+				return arr;
 			}
 		}
+		return null;
+	}
+
+	removeCache(lat, lng){
+		let arr = map.findTempCaches(lat, lng);
+		if(arr != null){
+			let cache = arr[0];
+			this.remove(cache.circle);
+			this.remove(cache.marker);
+			this.tempCaches.splice(arr[1], 1);
+			return;
+		}
 		alert(`INTERNAL ERROR IN METHOD 'removeCache(${lat}, ${lng})'`);
+	}
+
+	alterCoordinates(lat, lng){
+		let cache = map.findCache(lat, lng);
+		if(cache==null){
+			alert(`INTERNAL ERROR IN METHOD 'alterCoordinates(${lat}, ${lng})'`);
+			return;
+		}
+		cache.dragableMarker();
+		cache.dragMark.on('dragstart', function (e) {
+			if(kindIsPhysical(cache.kind))
+				map.remove(cache.circle);
+		})
+		cache.dragMark.on('dragend', function (e) {
+			let dragMarkPos = [];
+			dragMarkPos[LAT] = cache.dragMark.getLatLng().lat;
+			dragMarkPos[LNG] = cache.dragMark.getLatLng().lng;
+			if(map.invadesAnyCacheRadious(dragMarkPos[LAT], dragMarkPos[LNG])
+			|| !map.hasEnoughRadious(dragMarkPos[LAT], dragMarkPos[LNG])){
+				cache.restoreOldMarker();
+			}
+			else {
+				cache.changeCachePos();
+			}
+		})
 	}
 
 	populate() {
