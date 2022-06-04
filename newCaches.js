@@ -123,7 +123,7 @@ async function placeNew(howMany){
                 let newC = getNewCoords(pivotCache, offNum);
                 if(!map.invadesAnyCacheRadious(newC[LAT], newC[LGN])){
                     await new Promise(r => setTimeout(r, 1));
-                    map.createCache(newC[LAT], newC[LGN]);
+                    map.createCache(newC[LAT], newC[LGN], AUTO_CIRCLE_COLOR);
                     howManyPlaced++;
                     howMany--;
                 }
@@ -293,9 +293,9 @@ class Cache extends POI {
 }
 
 class Temporary extends Cache{
-	constructor(xml) {
+	constructor(xml, color) {
 		super(xml);
-		this.circle.setStyle({color: USER_CIRCLE_COLOR, fillColor: USER_CIRCLE_COLOR});
+		this.circle.setStyle({color: color, fillColor: color});
 		map.add(this.circle);
 	}
 
@@ -338,7 +338,7 @@ class Map {
 		
 	}
 
-	createCache(lat, lng){
+	createCache(lat, lng, color){
 		let txt =
 		 `<cache>
 		 <code>UNKNOWN</code>
@@ -362,7 +362,7 @@ class Map {
 		 </cache>`;
 		let xml = txt2xml(txt);
 		if(this.invadesAnyCacheRadious(lat, lng)){alert("Cache Can't be created because another one is already in it's place"); return;}
-		this.tempCaches.push(new Temporary(xml));
+		this.tempCaches.push(new Temporary(xml, color));
 	}
 
 	disableCacheCreation(lat, lng){
@@ -373,7 +373,7 @@ class Map {
 				found = true;
 		}
 		if(found)
-			return `<button onclick="map.createCache('${lat}','${lng}')" id="createCache" >Create Cache</button>`;
+			return `<button onclick="map.createCache('${lat}','${lng}', '${USER_CIRCLE_COLOR}')" id="createCache" >Create Cache</button>`;
 		else
 			return `<button disabled>Create Cache</button>`;
 	}
