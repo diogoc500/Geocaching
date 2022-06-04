@@ -221,6 +221,10 @@ function getFirstValueByTagName(xml, name)  {
 }
 
 function kindIsPhysical(kind) {
+	return kind === "Traditional" || kind === "Multicache" || kind === 'Mystery' || kind === 'Letterbox';
+}
+
+function isTraditional(kind){
 	return kind === "Traditional";
 }
 
@@ -308,7 +312,7 @@ class Cache extends POI {
 		super(xml);
 		this.installMarker();
 		map.add(this.marker);
-		if(kindIsPhysical(this.kind)){
+		if(isTraditional(this.kind)){
 			this.installCircle(CACHE_RADIUS, TRAD_CIRCLE_COLOR, NO_POPUP);
 			map.add(this.circle);
 		}
@@ -321,7 +325,7 @@ class Cache extends POI {
 	}
 
 	isMovable(){
-		return (this.kind == "Mystery" || this.kind == "Multi");
+		return (this.kind === "Mystery" || this.kind === "Multi" || this.kind === "Letterbox");
 	}
 
 	decodeXML(xml) {
@@ -369,7 +373,7 @@ class Cache extends POI {
 	restoreOldMarker(){
 		map.remove(this.dragMark);
 		map.add(this.marker);
-		if(kindIsPhysical(this.kind))
+		if(isTraditional(this.kind))
 			map.add(this.circle);
 	}
 
@@ -379,7 +383,7 @@ class Cache extends POI {
 		map.remove(this.dragMark);
 		this.installMarker();
 		map.add(this.marker);
-		if(kindIsPhysical(this.kind)){
+		if(isTraditional(this.kind)){
 			this.installCircle(CACHE_RADIUS, this.color, NO_POPUP);
 			map.add(this.circle);
 		}
@@ -479,14 +483,21 @@ class Map {
 		}
 		return false;
 	}
-
+	//if isKindKnown is false, we have to discover the kind
 	invadesAnyCacheRadious(lat, lng, self){
+		let kind;
+		if(self == null)
+			kind = "Traditional";
+		else
+			kind = self.kind;
 		for(let i = 0; i < this.caches.length; i++){
-			if(haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000 < CACHE_RADIUS && this.caches[i] != self)
+			if(haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000 < CACHE_RADIUS && this.caches[i] != self 
+			&& kindIsPhysical(this.caches[i].kind) && kindIsPhysical(kind))
 				return true;
 		}
 		for(let i = 0; i < this.tempCaches.length; i++){
-			if(haversine(this.tempCaches[i].latitude, this.tempCaches[i].longitude, lat, lng)*1000 < CACHE_RADIUS && this.tempCaches[i] != self){
+			if(haversine(this.tempCaches[i].latitude, this.tempCaches[i].longitude, lat, lng)*1000 < CACHE_RADIUS && this.tempCaches[i] != self
+			&& kindIsPhysical(this.tempCaches[i].kind) && kindIsPhysical(kind)){
 				return true;
 			}
 		}
@@ -533,7 +544,7 @@ class Map {
 		}
 		cache.dragableMarker();
 		cache.dragMark.on('dragstart', function (e) {
-			if(kindIsPhysical(cache.kind))
+			if(isTraditional(cache.kind))
 				map.remove(cache.circle);
 		})
 		cache.dragMark.on('dragend', function (e) {
