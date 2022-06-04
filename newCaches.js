@@ -61,6 +61,8 @@ const USER_CIRCLE_COLOR=
 	"lime";
 const AUTO_CIRCLE_COLOR=
 	"blue";
+const LAT = 0;
+const LGN = 1;
 
 /* GLOBAL VARIABLES */
 
@@ -68,7 +70,69 @@ let map = null;
 
 
 
+let offs;
+
 /* USEFUL FUNCTIONS */
+
+function toRad(deg) { return deg * 3.1415926535898 / 180.0; }
+
+function getOffset(deg, lambda){
+    //[latitude offset, longitude offset]
+    let delta = 0.00190;
+    let latCorrection = -0.0004;
+    return [lambda*(delta+latCorrection)*Math.sin(toRad(deg)), lambda*delta*Math.cos(toRad(deg))];
+}
+
+function initOffs2layers(){
+    offs = [
+        getOffset(0, 1),
+        getOffset(60, 1),
+        getOffset(120, 1),
+        getOffset(180, 1),
+        getOffset(240, 1),
+        getOffset(300, 1),
+        getOffset(0, 2),
+        getOffset(60, 2),
+        getOffset(120, 2),
+        getOffset(180, 2),
+        getOffset(240, 2),
+        getOffset(300, 2),
+        getOffset(30, Math.sqrt(3)),
+        getOffset(90, Math.sqrt(3)),
+        getOffset(150, Math.sqrt(3)),
+        getOffset(210, Math.sqrt(3)),
+        getOffset(270, Math.sqrt(3)),
+        getOffset(330, Math.sqrt(3))
+    ];
+}
+
+//deg in degrees
+function getNewCoords(pivotCache, offNum){
+    let off = offs[offNum]
+    return [parseFloat(pivotCache.latitude) + off[LAT], parseFloat(pivotCache.longitude) + off[LGN]];
+}
+
+async function placeNew(howMany){
+    initOffs2layers();
+    let howManyPlaced = 0;
+    let isInfinite = howMany<0;
+    for(let i=0; i<map.caches.length && ((howMany<=0 && isInfinite)||(howMany>0 && !isInfinite)); i++){
+        let pivotCache = map.caches[i];
+        if(pivotCache.kind === 'Traditional'){
+            for(let offNum = 0; offNum<18; offNum++){
+                let newC = getNewCoords(pivotCache, offNum);
+                if(!map.invadesAnyCacheRadious(newC[LAT], newC[LGN])){
+                    await new Promise(r => setTimeout(r, 1));
+                    map.createCache(newC[LAT], newC[LGN]);
+                    howManyPlaced++;
+                    howMany--;
+                }
+                if(howMany<=0 && !isInfinite) break;
+            }
+        }
+    }
+    if(isInfinite) alert(howManyPlaced);
+}
 
 // Capitalize the first letter of a string.
 function capitalize(str)
@@ -299,7 +363,6 @@ class Map {
 		let xml = txt2xml(txt);
 		if(this.invadesAnyCacheRadious(lat, lng)){alert("Cache Can't be created because another one is already in it's place"); return;}
 		this.tempCaches.push(new Temporary(xml));
-		map.closePopup();
 	}
 
 	disableCacheCreation(lat, lng){
