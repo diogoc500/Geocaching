@@ -291,8 +291,6 @@ class POI {
 			circle.bindPopup(popup, {autoClose: true}).openPopup();
 		this.circle = circle;
 	}
-
-	//circleToGr
 }
 
 function getSite(id, argument) {
