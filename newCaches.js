@@ -46,12 +46,21 @@ const CACHE_KINDS = ["CITO", "Earthcache", "Event",
 	"Letterbox", "Mega", "Multi", "Mystery", "Other",
 	"Traditional", "Virtual", "Webcam", "Wherigo"];
 const CACHE_RADIUS =
-	161	// meters
+	161;  // meters
+const MAX_CREATION_RADIOUS =
+	400;
 const CACHES_FILE_NAME =
 	"caches.xml";
 const STATUS_ENABLED =
-	"E"
-
+	"E";
+const PLACE_CIRCLE_COLOR=
+	"green";
+const TRAD_CIRCLE_COLOR=
+	"red";
+const USER_CIRCLE_COLOR=
+	"lime";
+const AUTO_CIRCLE_COLOR=
+	"blue";
 
 /* GLOBAL VARIABLES */
 
@@ -60,11 +69,6 @@ let map = null;
 
 
 /* USEFUL FUNCTIONS */
-
-/*function addTemporaryCache(lat, lng) {
-	console.log("ola");
-	//this.tempCaches.push(new Temporary)
-}*/
 
 // Capitalize the first letter of a string.
 function capitalize(str)
@@ -152,7 +156,7 @@ class POI {
 		let style = {color: color, fillColor: color, weight: 1, fillOpacity: 0.1};
 		let circle = L.circle(pos, radius, style);
 		if( popup != "" )
-			circle.bindPopup(popup);
+			circle.bindPopup(popup, {autoClose: true}).openPopup();
 		this.circle = circle;
 	}
 
@@ -176,7 +180,7 @@ class Cache extends POI {
 		this.installMarker();
 		map.add(this.marker);
 		if(kindIsPhysical(this.kind)){
-			this.installCircle(CACHE_RADIUS, 'red', "");
+			this.installCircle(CACHE_RADIUS, TRAD_CIRCLE_COLOR, "");
 			map.add(this.circle);
 		}
 	}
@@ -219,7 +223,7 @@ class Cache extends POI {
 			.bindPopup('<b>'+ this.kind + '</b>' + ' Cache' + '<br>'
 			+ `<button onclick="getSite('B1', '${this.code})')" id="B1" >Geocache</button>`
 			+ `<button onclick="getSite('B2', '${pos[0]}'+ ',' + '${pos[1]}')" id="B2" >Maps</button>` + disableCacheAlteration(this))
-				.bindTooltip(this.name);
+			.openPopup().bindTooltip(this.name);
 		this.marker = marker;
 	}
 }
@@ -227,7 +231,7 @@ class Cache extends POI {
 class Temporary extends Cache{
 	constructor(xml) {
 		super(xml);
-		this.circle.setStyle({color: 'lime', fillColor: 'lime'});
+		this.circle.setStyle({color: USER_CIRCLE_COLOR, fillColor: USER_CIRCLE_COLOR});
 		map.add(this.circle);
 	}
 
@@ -246,10 +250,11 @@ class Place extends POI {
 		this.name = name;
 		this.latitude = pos[0];
 		this.longitude = pos[1];
-		this.installCircle(CACHE_RADIUS, 'green', name);
+		this.installCircle(CACHE_RADIUS, PLACE_CIRCLE_COLOR, name);
 		map.add(this.circle);	
 	}
 }
+
 
 /* Map CLASS */
 
@@ -292,14 +297,16 @@ class Map {
 		 <last_log>2000/01/01</last_log>
 		 </cache>`;
 		let xml = txt2xml(txt);
+		if(this.invadesAnyCacheRadious(lat, lng)){alert("Cache Can't be created because another one is already in it's place"); return;}
 		this.tempCaches.push(new Temporary(xml));
+		map.closePopup();
 	}
 
 	disableCacheCreation(lat, lng){
 		let found = false;
 		for(let i = 0; i < this.caches.length; i++){
 			let haversineMeters = haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000;
-			if(haversineMeters < 400 && !this.invadesAnyCacheRadious(lat, lng))
+			if(haversineMeters < MAX_CREATION_RADIOUS && !this.invadesAnyCacheRadious(lat, lng))
 				found = true;
 		}
 		if(found)
@@ -324,14 +331,13 @@ class Map {
 		for(let i = 0; i < this.tempCaches.length; i++){
 			let tmp = this.tempCaches[i];
 			if(this.tempCaches[i].latitude == lat && this.tempCaches[i].longitude == lng){
-				//this.tempCaches[i].removeMarker();
 				this.remove(this.tempCaches[i].circle);
 				this.remove(this.tempCaches[i].marker);
 				this.tempCaches.splice(i, 1);
 				return;
 			}
 		}
-		alert("INTERNAL ERROR");
+		alert(`INTERNAL ERROR IN METHOD 'removeCache(${lat}, ${lng})'`);
 	}
 
 	populate() {
