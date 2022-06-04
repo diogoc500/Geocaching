@@ -11,6 +11,17 @@ developd the project; indication of which parts of the work
 made and which were not made; possibly alerts to some aspects of the
 implementation that may be less obvious to the teacher.
 
+Comment about points 5 and 6:
+After reflecting for some time, my group reached the conclusion that the best way to
+fill a "donut" with inner radius of 161m and outer radius of 400m with circles whose
+radii do not touch each other was by trying to mimic a flower of life (rosácea in portuguese).
+For that, we studied the distances in longitude and latitude and use trigonometric principles
+to achieve the 18 possible circles that can be placed inside the donut.
+A more ilustrative view of the matter can be view here: https://imgur.com/a/IqzCDsc.
+In the linked image, the red circle is the radius of the center Cache, the blue circles are the radii of the caches 
+that we are trying to add and the green circle represents the 400m radius of the center cache.
+Moreover, to achieve the animation we used the setTimeout function. Each placeable cache
+will have to wait at least 1ms to be placed.
 
 
 0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
@@ -69,11 +80,24 @@ const LNG = 1;
 
 let map = null;
 
-
-
 let offs;
 
+let ownerList = [];
+
+let maxOwner;
+let maxCache;
+
 /* USEFUL FUNCTIONS */
+function updateMaxAltitude(){
+	let elem = document.getElementById('highalt');
+	elem.textContent = maxCache.code;
+}
+
+function incrStat(id, value){
+	let elem = document.getElementById(id);
+	value += parseInt(elem.textContent, 10);
+	elem.textContent = value;
+}
 
 function toRad(deg) { return deg * 3.1415926535898 / 180.0; }
 
@@ -122,7 +146,7 @@ async function placeNew(howMany){
         if(pivotCache.kind === 'Traditional'){
             for(let offNum = 0; offNum<18; offNum++){
                 let newC = getNewCoords(pivotCache, offNum);
-                if(!map.invadesAnyCacheRadious(newC[LAT], newC[LNG])){
+                if(!map.invadesAnyCacheRadious(newC[LAT], newC[LNG], null)){
                     await new Promise(r => setTimeout(r, 1));
                     map.createCache(newC[LAT], newC[LNG], AUTO_CIRCLE_COLOR);
                     howManyPlaced++;
@@ -200,6 +224,49 @@ function kindIsPhysical(kind) {
 	return kind === "Traditional";
 }
 
+class Owner{
+	constructor(name){
+		this.name = name;
+		this.numOfCaches = 0;
+	}
+
+	incrCaches(value){
+		this.numOfCaches += value;
+	}
+
+	static getNum(name){
+		let idx = ownerList.findIndex(e => e.name === name);
+		return ownerList[idx].numOfCaches;
+	}
+
+	static addToOwner(owner, value){
+		let idx = ownerList.findIndex(e => e.name === owner);
+		let updtOwner;
+		if(idx === -1){
+			updtOwner = new Owner(owner);
+			updtOwner.numOfCaches = value;
+			ownerList.push(updtOwner);
+		}
+		else{
+			updtOwner = ownerList[idx];
+			updtOwner.numOfCaches += value;
+		}
+			
+		if(maxOwner === undefined){
+			maxOwner = ownerList[0];
+		}
+		else if(updtOwner.numOfCaches > maxOwner.numOfCaches){
+			maxOwner = ownerList[idx];
+		}
+		this.processMax();
+	}
+
+	static processMax(){
+		let elem = document.getElementById('prolown');
+		elem.textContent = maxOwner.name;
+	}
+}
+
 
 /* POI CLASS + Cache CLASS */
 
@@ -220,16 +287,15 @@ class POI {
 		let pos = [this.latitude, this.longitude];
 		let style = {color: color, fillColor: color, weight: 1, fillOpacity: 0.1};
 		let circle = L.circle(pos, radius, style);
-		if( popup != "" )
+		if( popup != NO_POPUP)
 			circle.bindPopup(popup, {autoClose: true}).openPopup();
 		this.circle = circle;
 	}
 
-	circleToGr
+	//circleToGr
 }
 
 function getSite(id, argument) {
-	console.log(argument);
 	let url;
 	switch(id){
 		case "B1": url = "https://www.geocaching.com/geocache/" + argument; break;
@@ -245,7 +311,7 @@ class Cache extends POI {
 		this.installMarker();
 		map.add(this.marker);
 		if(kindIsPhysical(this.kind)){
-			this.installCircle(CACHE_RADIUS, TRAD_CIRCLE_COLOR, "");
+			this.installCircle(CACHE_RADIUS, TRAD_CIRCLE_COLOR, NO_POPUP);
 			map.add(this.circle);
 		}
 		this.color = TRAD_CIRCLE_COLOR;
@@ -371,11 +437,12 @@ class Map {
 	}
 
 	createCache(lat, lng, color){
+		let owner = color==='blue'? 'CPU':'User';
 		let txt =
 		 `<cache>
 		 <code>UNKNOWN</code>
 		 <name>UNKNOWN</name>
-		 <owner>UNKNOWN</owner>
+		 <owner>${owner}</owner>
 		 <latitude>${lat}</latitude>
 		 <longitude>${lng}</longitude>
 		 <altitude>-32768</altitude>
@@ -393,34 +460,37 @@ class Map {
 		 <last_log>2000/01/01</last_log>
 		 </cache>`;
 		let xml = txt2xml(txt);
-		if(this.invadesAnyCacheRadious(lat, lng)){alert("Cache Can't be created because another one is already in it's place"); return;}
+		if(this.invadesAnyCacheRadious(lat, lng, null)){alert("Cache Can't be created because another one is already in it's place"); return;}
 		this.tempCaches.push(new Temporary(xml, color));
+		incrStat('Traditional', 1);
+		Owner.addToOwner(owner, 1);
 	}
 
 	disableCacheCreation(lat, lng){
-		if(this.hasEnoughRadious(lat, lng) && !this.invadesAnyCacheRadious(lat, lng))
-			return `<button onclick="map.createCache('${lat}','${lng}', '${USER_CIRCLE_COLOR}')" id="createCache" >Create Cache</button>`;
+		if(this.hasEnoughRadious(lat, lng, null) && !this.invadesAnyCacheRadious(lat, lng, null))
+			return `<button onclick="map.createCache('${lat}','${lng}', '${USER_CIRCLE_COLOR}')">Create Cache</button>`;
 		else
 			return `<button disabled>Create Cache</button>`;
 	}
 
-	hasEnoughRadious(lat, lng){
+	hasEnoughRadious(lat, lng, self){
 		for(let i = 0; i < this.caches.length; i++){
 			let haversineMeters = haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000;
-			if(haversineMeters <= MAX_CREATION_RADIOUS)
+			if(haversineMeters <= MAX_CREATION_RADIOUS && this.caches[i] != self)
 				return true;
 		}
 		return false;
 	}
 
-	invadesAnyCacheRadious(lat, lng){
+	invadesAnyCacheRadious(lat, lng, self){
 		for(let i = 0; i < this.caches.length; i++){
-			if(haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000 < CACHE_RADIUS)
+			if(haversine(this.caches[i].latitude, this.caches[i].longitude, lat, lng)*1000 < CACHE_RADIUS && this.caches[i] != self)
 				return true;
 		}
 		for(let i = 0; i < this.tempCaches.length; i++){
-			if(haversine(this.tempCaches[i].latitude, this.tempCaches[i].longitude, lat, lng)*1000 < CACHE_RADIUS)
+			if(haversine(this.tempCaches[i].latitude, this.tempCaches[i].longitude, lat, lng)*1000 < CACHE_RADIUS && this.tempCaches[i] != self){
 				return true;
+			}
 		}
 		return false;
 	}
@@ -430,28 +500,28 @@ class Map {
 			if(this.caches[i].latitude == lat && this.caches[i].longitude == lng)
 				return this.caches[i];
 		}
-		return map.findTempCaches(lat, lng)[0];
+		let i = map.findTempCaches(lat, lng);
+		if(i == -1) return null; 
+		else return map.tempCaches[i];
 	}
 
 	findTempCaches(lat, lng){
-		let arr = [];
 		for(let i = 0; i < this.tempCaches.length; i++){
 			if(this.tempCaches[i].latitude == lat && this.tempCaches[i].longitude == lng){
-				arr[0] = this.tempCaches[i];
-				arr[1] = i;
-				return arr;
+				return i;
 			}
 		}
-		return null;
+		return -1;
 	}
 
 	removeCache(lat, lng){
-		let arr = map.findTempCaches(lat, lng);
-		if(arr != null){
-			let cache = arr[0];
+		let i = map.findTempCaches(lat, lng);
+		if(i != -1){
+			let cache = map.tempCaches[i];
 			this.remove(cache.circle);
 			this.remove(cache.marker);
-			this.tempCaches.splice(arr[1], 1);
+			this.tempCaches.splice(i, 1);
+			incrStat('Traditional', -1);
 			return;
 		}
 		alert(`INTERNAL ERROR IN METHOD 'removeCache(${lat}, ${lng})'`);
@@ -472,8 +542,8 @@ class Map {
 			let dragMarkPos = [];
 			dragMarkPos[LAT] = cache.dragMark.getLatLng().lat;
 			dragMarkPos[LNG] = cache.dragMark.getLatLng().lng;
-			if(map.invadesAnyCacheRadious(dragMarkPos[LAT], dragMarkPos[LNG])
-			|| !map.hasEnoughRadious(dragMarkPos[LAT], dragMarkPos[LNG])){
+			if(map.invadesAnyCacheRadious(dragMarkPos[LAT], dragMarkPos[LNG], cache)
+			|| !map.hasEnoughRadious(dragMarkPos[LAT], dragMarkPos[LNG], cache)){
 				cache.restoreOldMarker();
 			}
 			else {
@@ -565,12 +635,23 @@ class Map {
 		let xmlDoc = loadXMLDoc(filename);
 		let xs = getAllValuesByTagName(xmlDoc, "cache"); 
 		let caches = [];
+		
 		if(xs.length === 0)
 			alert("Empty cache file");
 		else {
+			let newCache;
 			for(let i = 0 ; i < xs.length ; i++)  // Ignore the disables caches
-				if( getFirstValueByTagName(xs[i], "status") === STATUS_ENABLED )
-					caches.push(new Cache(xs[i]));
+				if( getFirstValueByTagName(xs[i], "status") === STATUS_ENABLED ){
+					newCache = new Cache(xs[i]);
+					if(maxCache === undefined)
+						maxCache = newCache;
+					else if(maxCache.altitude < newCache.altitude)
+						maxCache = newCache;
+					caches.push(newCache);
+					Owner.addToOwner(newCache.owner, 1);
+					incrStat(newCache.kind, 1);
+				}
+			updateMaxAltitude();
 		}
 		return caches;
 	}
