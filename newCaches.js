@@ -483,7 +483,7 @@ class Map {
 		}
 		return false;
 	}
-	//if isKindKnown is false, we have to discover the kind
+	
 	invadesAnyCacheRadious(lat, lng, self){
 		let kind;
 		if(self == null)
